@@ -1,21 +1,22 @@
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 class Segment():
     def __init__(self,img) -> None:
         self.image=img
         self.height=self.image.shape[0]
         self.width=self.image.shape[1]
-        self.meanPixel=[self.image[0,0]] #A
-        self.numPixel=[1] #B
+        self.meanPixel=[self.image[0,0]]
+        self.numPixel=[1]
         self.R = np.zeros(img.shape[:2],dtype=np.int16)
         self.R[0,0]=0
         self.j=0
     def compute_thre(self,m,n,region):
-        return np.abs(self.image[m,n]-self.meanPixel[region])
+        return np.abs(self.image[m,n]-self.meanPixel[region]).sum()/3
     def update_region_mean(self,m,n):
-        return (self.meanPixel[self.R[m,n]]*self.numPixel[self.R[m,n]]+
-        self.image[m,n])/(self.numPixel[self.R[m,n]]+1)
-        
+        return (self.meanPixel[self.R[m,n]]*self.numPixel[self.R[m,n]]
+        +self.image[m,n])/(self.numPixel[self.R[m,n]]+1)
     def segment(self,threshold=25):
         #first row
         for i in range(1,self.width):
@@ -29,7 +30,7 @@ class Segment():
                 self.numPixel.append(1)
                 self.j+=1
         for j in range(1,self.height):
-            # 0-th pixel
+            #0-th pixel
             if self.compute_thre(j,0,self.R[j-1,0])<=threshold:
                 self.R[j,0]=self.R[j-1,0]
                 self.meanPixel[self.R[j,0]]=self.update_region_mean(j,0)
@@ -39,9 +40,9 @@ class Segment():
                 self.R[j,0]=self.j
                 self.meanPixel.append(self.image[j,0])
                 self.numPixel.append(1)
-            # 1~width-1 th pixel
+            
+            # 1~width-1 th pixel          
             for i in range(1,self.width):
-
                 upper = self.compute_thre(j,i,self.R[j-1,i])
                 left = self.compute_thre(j,i,self.R[j,i-1])
                 if upper<=threshold and left > threshold:
@@ -71,7 +72,7 @@ class Segment():
                         self.meanPixel[self.R[j,i]]=self.update_region_mean(j,i)
                         self.numPixel[self.R[j,i]]+=1
                     else:
-                        if(np.abs(self.meanPixel[upper_region]-self.meanPixel[left_region])<threshold):
+                        if(np.abs(self.meanPixel[upper_region]-self.meanPixel[left_region]).sum()/3<threshold):
                             #merge
                             self.R[j,i]=upper_region
                             for row in range(j):
@@ -97,10 +98,9 @@ class Segment():
                             self.R[j,i]=upper_region
                             self.meanPixel[self.R[j,i]]=self.update_region_mean(j,i)
                             self.numPixel[self.R[j,i]]+=1
-        #return self.R
-    
+
     def merge_region(self,delta=4):
-        for region in range(len(self.numPixel)):
+        for region in tqdm(range(len(self.numPixel))):
             if self.numPixel[region] < delta:
                 x=0
                 y=0
@@ -112,41 +112,48 @@ class Segment():
                             #print(region,x,y)
                             break
                 for row in range(self.width):
+                    counter=0
                     for col in range(self.height):
                         if self.R[col, row] == region:
+                            counter+=1
                             if y>0:
                                 self.R[col, row] = self.R[y-1,x]
                             else:
                                 self.R[col, row] = self.R[y,x-1]
-        #return self.R
+                        else:
+                            if counter!=0:
+                                break
+                    if counter==0:
+                        break
+                            
+                    
 
 if __name__=='__main__':
     threshold=25
-    image_test=np.array(
-        [[[255], [250], [254], [80], [150], [149], [152], [150]],
-        [[250], [82], [81], [85], [88], [149], [151], [149]],
-        [[84], [85], [82], [84], [89], [188], [193], [152]],
-        [[79], [81], [83], [80], [79], [81], [191], [155]],
-        [[81], [83], [123], [121], [123], [120], [122], [124]],
-        [[40], [85], [120], [125], [250], [230], [235], [229]],])
-    seg_test = Segment(image_test)
+    image= cv2.imread("mis/Lenna.jpg")
+    imageResized=cv2.resize(image,(256,256))
 
     fig = plt.figure('Result')
     original = fig.add_subplot(1,3,1) 
     original.set_title('Original')
-    original.imshow(image_test)
-    #original.pcolormesh(np.flip(image_test,0))
+    original.imshow(imageResized[:,:,[2,1,0]])
 
     processed = fig.add_subplot(1,3,2)
     processed.set_title('Processed')
-    seg_test.segment(threshold)
-    processed.imshow(seg_test.R)
+    seg_img = Segment(imageResized[:,:,[2,1,0]])
+    seg_img.segment(45)
+    processed.imshow(seg_img.R)
+    print(seg_img.j)
 
-    merge = fig.add_subplot(1,3,3)
+
+    merge=fig.add_subplot(1,3,3)
     merge.set_title('Merged')
-    #print(seg_test.image)
-    seg_test.merge_region()
-    merge.imshow(seg_test.R)
+    seg_img.merge_region(10)
+    merge.imshow(seg_img.R)
 
+    a=np.array([1,2,3])
+    b=np.array([1,2,3])
+    #print((a+b)/2)
     fig.tight_layout()
     plt.show()
+    
