@@ -37,9 +37,9 @@ class Segment():
     def compute_y_gradient(self):
         # first row 
         self.grad_y[0]=self.image[1]/2+self.image[2]/3+self.image[3]/6
-        # second column
+        # second row
         self.grad_y[1]=(self.image[2]-self.image[0])/2
-        # third column
+        # third row
         self.grad_y[2]=(self.image[3]-self.image[1])/2+(self.image[4]-self.image[1])/3
         for i in range(3,self.width-3):
             self.grad_y[i]=(
