@@ -12,12 +12,62 @@ class Segment():
         self.R = np.zeros(img.shape[:2],dtype=np.int16)
         self.R[0,0]=0
         self.j=0
+        self.weight=0.1
+        self.grad_x = np.zeros(img.shape)
+        self.grad_y = np.zeros(img.shape)
+        self.grad = np.zeros(img.shape)
+        
+        self.compute_gradient()
+    def compute_x_gradient(self):
+        # first column 
+        self.grad_x[:,0]=self.image[:,1]/2+self.image[:,2]/3+self.image[:,3]/6
+        # second column
+        self.grad_x[:,1]=(self.image[:,2]-self.image[:,0])/2
+        # third column
+        self.grad_x[:,2]=(self.image[:,3]-self.image[:,1])/2+(self.image[:,4]-self.image[:,1])/3
+        for i in range(3,self.width-3):
+            self.grad_x[:,i]=(
+                (self.image[:,i+1]-self.image[:,i-1])/2+
+                (self.image[:,i+2]-self.image[:,i-2])/3+
+                (self.image[:,i+3]-self.image[:,i-3])/6
+            )
+        self.grad_x[:,-3]=(self.image[:,-2]-self.image[:,-4])/2+(self.image[:,-1]-self.image[:,-5])/3
+        self.grad_x[:,-2]=(self.image[:,-1]-self.image[:,-3])/2
+        self.grad_x[:,-1]=self.image[:,-2]/2+self.image[:,-3]/3+self.image[:,-4]/6
+    def compute_y_gradient(self):
+        # first row 
+        self.grad_y[0]=self.image[1]/2+self.image[2]/3+self.image[3]/6
+        # second column
+        self.grad_y[1]=(self.image[2]-self.image[0])/2
+        # third column
+        self.grad_y[2]=(self.image[3]-self.image[1])/2+(self.image[4]-self.image[1])/3
+        for i in range(3,self.width-3):
+            self.grad_y[i]=(
+                (self.image[i+1]-self.image[i-1])/2+
+                (self.image[i+2]-self.image[i-2])/3+
+                (self.image[i+3]-self.image[i-3])/6
+            )
+        self.grad_y[-3]=(self.image[-2]-self.image[-4])/2+(self.image[-1]-self.image[-5])/3
+        self.grad_y[-2]=(self.image[-1]-self.image[-3])/2
+        self.grad_y[-1]=self.image[-2]/2+self.image[-3]/3+self.image[-4]/6
+    def compute_gradient(self):
+        self.compute_x_gradient()
+        self.compute_y_gradient()
+        self.grad=np.sqrt((np.sum(self.grad_x,axis=2)/3)**2
+                        +(np.sum(self.grad_y,axis=2)/3)**2)
+        
+        
+
     def compute_thre(self,m,n,region):
-        return np.abs(self.image[m,n]-self.meanPixel[region]).sum()/3
+        return (
+        np.abs(self.image[m,n]-self.meanPixel[region]).sum()/3+
+        self.weight*self.grad[m,n]
+        )
     def update_region_mean(self,m,n):
         return (self.meanPixel[self.R[m,n]]*self.numPixel[self.R[m,n]]
         +self.image[m,n])/(self.numPixel[self.R[m,n]]+1)
-    def segment(self,threshold=25):
+    def segment(self,threshold=25,weight=0.1):
+        self.weight=weight
         #first row
         for i in range(1,self.width):
             if self.compute_thre(0,i,self.R[0,i-1])<=threshold:
@@ -134,18 +184,23 @@ if __name__=='__main__':
     imageResized=cv2.resize(image,(256,256))
 
     fig = plt.figure('Result')
-    original = fig.add_subplot(1,3,1) 
+    original = fig.add_subplot(2,2,1) 
     original.set_title('Original')
     original.imshow(imageResized[:,:,[2,1,0]])
 
-    processed = fig.add_subplot(1,3,2)
-    processed.set_title('Processed')
     seg_img = Segment(imageResized[:,:,[2,1,0]])
-    seg_img.segment(45)
+
+    image_gradient = fig.add_subplot(2,2,2)
+    image_gradient.set_title('Image gradient')
+    image_gradient.imshow(seg_img.grad)
+
+    processed = fig.add_subplot(2,2,3)
+    processed.set_title('Processed')
+    seg_img.segment(50,0.12)
     processed.imshow(seg_img.R)
     print(seg_img.j)
 
-    merge=fig.add_subplot(1,3,3)
+    merge=fig.add_subplot(2,2,4)
     merge.set_title('Merged')
     seg_img.merge_region(10)
     merge.imshow(seg_img.R)
