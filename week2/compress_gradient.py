@@ -15,7 +15,7 @@ class Segment():
         self.weight=0.1
         self.grad_x = np.zeros(img.shape)
         self.grad_y = np.zeros(img.shape)
-        self.grad = np.zeros(img.shape)
+        self.grad = np.zeros(img.shape[:2])
         
         self.compute_gradient()
     def compute_x_gradient(self):
@@ -55,7 +55,6 @@ class Segment():
         self.compute_y_gradient()
         self.grad=np.sqrt((np.sum(self.grad_x,axis=2)/3)**2
                         +(np.sum(self.grad_y,axis=2)/3)**2)
-        
         
 
     def compute_thre(self,m,n,region):
@@ -202,7 +201,7 @@ if __name__=='__main__':
 
     merge=fig.add_subplot(2,2,4)
     merge.set_title('Merged')
-    seg_img.merge_region(10)
+    #seg_img.merge_region(10)
     merge.imshow(seg_img.R)
 
     fig.tight_layout()
