@@ -9,10 +9,10 @@ from tqdm import tqdm
 from scipy import signal
 from colorconvert import Colorconvert
 
-random.seed(7777)
+
 
 class Segment():
-    def __init__(self, _image:np.ndarray, _superpixelData:np.ndarray, LAMBDA=0.6, ALPHA=0.33,threshold=35,_kernel_size=5) -> None:
+    def __init__(self, _image:np.ndarray, _superpixelData:np.ndarray, LAMBDA=0.5, ALPHA=0.33,threshold=30,_kernel_size=5) -> None:
         self.superPixel=_superpixelData
         self.superPixelNum = len(set(list(_superpixelData.flatten())))
         self.notMerged = [True]*self.superPixelNum
@@ -31,8 +31,8 @@ class Segment():
         self.featureNum=9
         self.weight = [
             0, 0, 0,
-            0.3, 0.65, 0.65,
-            0.3, 0.65, 0.65
+            0.5, 1, 1,
+            0.5, 1, 1
         ]
         self.feature = [0]*self.featureNum
 
@@ -57,9 +57,9 @@ class Segment():
 
 
 
-        self.T1=[]
-        self.T2=[]
-        self.T3=[]
+        # self.T1=[]
+        # self.T2=[]
+        # self.T3=[]
         #self.grad = np.zeros(_image.shape[:2])
 
         #Compute gradient and convolve with 1d kernel
@@ -130,7 +130,8 @@ class Segment():
             for n in range(len(self.image[0])):
                 self.YCbCr[m,n]=np.matmul(mat,self.image[m,n])
 
-    def merge(self, _kernel_size):
+    def merge(self, _kernel_size,threshold=30):
+        self.threshold=threshold
         self.kernel_size=_kernel_size
         self.kernel=self.gaussian_kernel(self.sigma)
         self.compute_feat_grad()
@@ -355,34 +356,48 @@ class Segment():
         #pixelsA = np.array(pixelsA).astype(float)
         pixelsB = np.array(pixelsB).astype(float)
         t1 = min(np.sum(pixelsA), np.sum(pixelsB))
-        self.T1.append(t1)
+        #self.T1.append(t1)
         if t1 < 0.001*self.height*self.width:
-            return 1.5*self.threshold
+            return 1.4*self.threshold
         regionIntersect=self.region_intersect(regionA,regionB)
         t2 = len(regionIntersect)/min(np.sum(pixelsA), np.sum(pixelsB))
-        self.T2.append(t2)
+        #self.T2.append(t2)
         if t2 < 0.03: #small
-            return 0.8*self.threshold
+            return 0.6*self.threshold
         elif t2 > 0.15:
-            return 1.2*self.threshold
+            return 1.3*self.threshold
         else:
             ga = np.zeros(3)
-            for m in range(self.height):
-                for n in range(self.width):
-                    if pixelsA[m,n]!=0:
-                        ga+=np.sqrt(self.grad_x[m,n]**2+self.grad_y[m,n]**2)
-            #print(np.sum(ga))
-            ga = np.sum(ga)/np.sum(pixelsA)
+            # for m in range(self.height):
+            #     for n in range(self.width):
+            #         if pixelsA[m,n]!=0:
+            #             ga+=np.sqrt(self.grad_x[m,n]**2+self.grad_y[m,n]**2)
+            # #print(np.sum(ga))
+            # ga = np.sum(ga)/np.sum(pixelsA)
+            # print(ga)
+            pixelsA3 = np.zeros((256,256,3))
+            pixelsA3[:,:,0]=pixelsA
+            pixelsA3[:,:,1]=pixelsA
+            pixelsA3[:,:,2]=pixelsA
+            ga = np.sum(np.sqrt((self.grad_x*pixelsA3)**2+(self.grad_y*pixelsA3)**2))/np.sum(pixelsA)
+
             #print(np.sum(pixelsA*self.grad_x))
             gb = np.zeros(3)
-            for m in range(self.height):
-                for n in range(self.width):
-                    if pixelsB[m,n]!=0:
-                        gb+=np.sqrt(self.grad_x[m,n]**2+self.grad_y[m,n]**2)
-            gb = np.sum(gb)/np.sum(pixelsB)
+            # for m in range(self.height):
+            #     for n in range(self.width):
+            #         if pixelsB[m,n]!=0:
+            #             gb+=np.sqrt(self.grad_x[m,n]**2+self.grad_y[m,n]**2)
+            # gb = np.sum(gb)/np.sum(pixelsB)
+
+            pixelsB3 = np.zeros((256,256,3))
+            pixelsB3[:,:,0]=pixelsB
+            pixelsB3[:,:,1]=pixelsB
+            pixelsB3[:,:,2]=pixelsB
+
+            gb =  np.sum(np.sqrt((self.grad_x*pixelsB3)**2+(self.grad_y*pixelsB3)**2))/np.sum(pixelsB)
             
             t3 = min(ga**self.ALPHA,gb**self.ALPHA)
-            self.T3.append(t3)
+            #self.T3.append(t3)
             if t3 > 3:
                 return 1.3*self.threshold
             else: 
@@ -398,9 +413,10 @@ def random_cmap(k:int)->list:
     
 
 if __name__=='__main__':
-    imagePlane = cv2.imread('mis/37073.jpg')
+    random.seed(7777)
+    imagePlane = cv2.imread('mis/Lena256c.jpg')
     #print(imagePlane.shape)
-    data = io.loadmat('mis/segments.mat')
+    data = io.loadmat('mis/segments_Lena256c.mat')
     superpixelData = np.array(data['segments'])
     S = Segment(imagePlane, superpixelData)
 
@@ -419,7 +435,11 @@ if __name__=='__main__':
 
     S.merge(min(S.width,S.height)/100)
     S.merge(min(S.width,S.height)/50)
-    S.merge(min(S.width,S.height)/25)
+    S.merge(min(S.width,S.height)/50,threshold=40)
+    #S.merge(min(S.width,S.height)/25)
+    #S.merge(min(S.width,S.height)/10)
+    #S.merge(min(S.width,S.height)/5)
+    #S.merge(min(S.width,S.height)/2.5)
 
     mean = fig.add_subplot(2,2,3)
     mean.set_title('mean')
@@ -441,18 +461,18 @@ if __name__=='__main__':
 
     fig.tight_layout()
 
-    T = plt.figure('Ts')
-    pt1 = T.add_subplot(1,3,1) 
-    pt1.set_title('Original')
-    pt1.plot(np.arange(len(S.T1)),S.T1) 
-    pt2 = T.add_subplot(1,3,2) 
-    pt2.set_title('Original')
-    pt2.plot(np.arange(len(S.T2)),S.T2) 
-    pt3 = T.add_subplot(1,3,3) 
-    pt3.set_title('Original')
-    pt3.plot(np.arange(len(S.T3)),S.T3)
-    print(f"len(S.T1): {len(S.T1)}")
-    print(f"len(S.T2): {len(S.T2)}")
-    print(f"len(S.T3): {len(S.T3)}")
+    # T = plt.figure('Ts')
+    # pt1 = T.add_subplot(1,3,1) 
+    # pt1.set_title('Original')
+    # pt1.plot(np.arange(len(S.T1)),S.T1) 
+    # pt2 = T.add_subplot(1,3,2) 
+    # pt2.set_title('Original')
+    # pt2.plot(np.arange(len(S.T2)),S.T2) 
+    # pt3 = T.add_subplot(1,3,3) 
+    # pt3.set_title('Original')
+    # pt3.plot(np.arange(len(S.T3)),S.T3)
+    # print(f"len(S.T1): {len(S.T1)}")
+    # print(f"len(S.T2): {len(S.T2)}")
+    # print(f"len(S.T3): {len(S.T3)}")
     plt.show()
     
